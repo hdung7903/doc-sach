@@ -1,0 +1,108 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: doc_sach
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d doc_sach"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+  tts-worker:
+    build:
+      context: ../services/tts-worker
+    environment:
+      TTS_WORKER_TOKEN: change-me
+      PIPER_LENGTH_SCALE: "1.0"
+    ports:
+      - "8100:8100"
+
+  backend:
+    build:
+      context: ../backend
+    environment:
+      APP_NAME: DocSach
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8000
+      APP_KEY: base64:change-this-key-before-production
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: doc_sach
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      QUEUE_CONNECTION: database
+      FILESYSTEM_DISK: public
+      CACHE_STORE: database
+      SESSION_DRIVER: database
+      TTS_WORKER_URL: http://tts-worker:8100
+      TTS_WORKER_TOKEN: change-me
+    depends_on:
+      postgres:
+        condition: service_healthy
+      tts-worker:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "php artisan migrate --force &&
+      php artisan storage:link || true;
+      php artisan serve --host=0.0.0.0 --port=8000"
+
+  queue:
+    build:
+      context: ../backend
+    environment:
+      APP_NAME: DocSach
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8000
+      APP_KEY: base64:change-this-key-before-production
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: doc_sach
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      QUEUE_CONNECTION: database
+      FILESYSTEM_DISK: public
+      CACHE_STORE: database
+      SESSION_DRIVER: database
+      TTS_WORKER_URL: http://tts-worker:8100
+      TTS_WORKER_TOKEN: change-me
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
+      tts-worker:
+        condition: service_started
+    command: php artisan queue:work --sleep=1 --tries=2 --timeout=1800
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  redis_data:
