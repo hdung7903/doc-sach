@@ -56,3 +56,5 @@ button{border:0;border-radius:10px;padding:12px 16px;background:#f4f5f7;color:#0
   .volume-control input{flex:1}
   .audio-player.empty{flex-direction:column;align-items:flex-start}
 }
+
+.book{cursor:pointer}.book.selected{border-color:#f4f5f7}.chapter-section{padding-top:0}.chapters{display:grid;gap:8px}.chapter{width:100%;justify-content:flex-start;background:#111419;color:#f4f5f7;border:1px solid #292e35;text-align:left}.chapter span{width:28px;color:#737b87}.chapter strong{flex:1}.chapter.active{border-color:#f4f5f7}.loading{display:flex;align-items:center;gap:9px;color:#8f98a4;padding:24px 0}.spin{animation:spin 1s linear infinite}.error{color:#ff8f8f;border:1px solid #5b2b2b;background:#201214;padding:12px;border-radius:10px}.tts-status{color:#8f98a4;font-size:13px;margin-top:10px}@keyframes spin{to{transform:rotate(360deg)}}
