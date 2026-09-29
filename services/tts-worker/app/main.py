@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from piper import PiperVoice, SynthesisConfig
 
@@ -76,4 +76,4 @@ def synthesize(payload: SynthesizeRequest, x_worker_token: str | None = Header(d
         if result.returncode != 0:
             raise HTTPException(status_code=500, detail=result.stderr[-1000:])
 
-        return FileResponse(mp3_path, media_type="audio/mpeg", filename="speech.mp3")
+        return Response(content=mp3_path.read_bytes(), media_type="audio/mpeg", headers={"Content-Disposition": "attachment; filename=\"speech.mp3\""})
