@@ -1,16 +1,20 @@
 <?php
 
-namespace App\\Models;
+namespace App\Models;
 
-use Illuminate\\Database\\Eloquent\\Concerns\\HasUuids;
-use Illuminate\\Database\\Eloquent\\Model;
-use Illuminate\\Database\\Eloquent\\Relations\\BelongsTo;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AudioAsset extends Model
 {
     use HasUuids;
 
-    protected $fillable = ['chapter_id','chunk_id','storage_disk','storage_path','mime_type','duration_seconds','size_bytes','voice','speed'];
+    protected $fillable = [
+        'chapter_id', 'chunk_id', 'storage_disk', 'storage_path',
+        'mime_type', 'duration_seconds', 'size_bytes', 'engine',
+        'text_hash', 'format', 'voice', 'speed',
+    ];
 
     protected $casts = ['speed' => 'decimal:2'];
 
