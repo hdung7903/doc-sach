@@ -103,6 +103,9 @@ export default function Home() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const readerContentRef = useRef<HTMLElement | null>(null);
+  const readerSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restoringReaderRef = useRef(false);
 
   useEffect(() => {
     const savedToken = window.localStorage.getItem(tokenKey);
@@ -189,6 +192,10 @@ export default function Home() {
     setChapterDetail(null);
     setReaderOpen(false);
     setAudio([]);
+    if (readerSaveTimerRef.current) {
+      clearTimeout(readerSaveTimerRef.current);
+      readerSaveTimerRef.current = null;
+    }
   };
 
   const selectBook = async (book: Book) => {
@@ -221,6 +228,7 @@ export default function Home() {
       setSelectedChapter(chapter);
       setChapterDetail(detail);
       setReadingProgress(progress);
+      restoringReaderRef.current = true;
       setReaderOpen(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không mở được chương.");
@@ -249,6 +257,56 @@ export default function Home() {
       setReaderSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (!readerOpen || !chapterDetail || !readerContentRef.current) return;
+
+    const element = readerContentRef.current;
+    const percent = Number(readingProgress?.progress_percent ?? 0);
+    const restore = () => {
+      const maxScroll = Math.max(0, element.scrollHeight - element.clientHeight);
+      element.scrollTop = maxScroll * (Math.max(0, Math.min(100, percent)) / 100);
+      restoringReaderRef.current = false;
+    };
+
+    const frame = window.requestAnimationFrame(restore);
+    return () => window.cancelAnimationFrame(frame);
+  }, [readerOpen, chapterDetail, readingProgress?.chapter_id]);
+
+  useEffect(() => {
+    if (!readerOpen || !chapterDetail || !readerContentRef.current) return;
+
+    const element = readerContentRef.current;
+    const handleScroll = () => {
+      if (restoringReaderRef.current) return;
+
+      const maxScroll = Math.max(0, element.scrollHeight - element.clientHeight);
+      const percent = maxScroll === 0 ? 100 : (element.scrollTop / maxScroll) * 100;
+      const rounded = Number(percent.toFixed(2));
+      const current = Number(readingProgress?.progress_percent ?? 0);
+
+      setReadingProgress((progress) => progress
+        ? { ...progress, chapter_id: chapterDetail.id, progress_percent: rounded }
+        : { chapter_id: chapterDetail.id, position_seconds: 0, progress_percent: rounded }
+      );
+
+      if (Math.abs(rounded - current) < 0.25) return;
+      if (readerSaveTimerRef.current) clearTimeout(readerSaveTimerRef.current);
+      readerSaveTimerRef.current = setTimeout(() => {
+        void saveReaderProgress(rounded);
+        readerSaveTimerRef.current = null;
+      }, 1500);
+    };
+
+    element.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      element.removeEventListener("scroll", handleScroll);
+      if (readerSaveTimerRef.current) {
+        clearTimeout(readerSaveTimerRef.current);
+        readerSaveTimerRef.current = null;
+      }
+    };
+  }, [readerOpen, chapterDetail, readingProgress?.progress_percent]);
 
   const nextChapter = () => {
     if (!selectedChapter) return;
@@ -505,7 +563,7 @@ export default function Home() {
               <button className="secondary" onClick={nextChapter} disabled={!chapters.some((chapter) => chapter.position === (selectedChapter?.position ?? -1) + 1)}>Chương tiếp</button>
             </div>
           </div>
-          <article className="reader-content">
+          <article ref={readerContentRef} className="reader-content">
             {chapterDetail.content.split(/\n\s*\n/).map((paragraph, index) => (
               <p key={index}>{paragraph}</p>
             ))}
