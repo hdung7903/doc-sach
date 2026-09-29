@@ -534,9 +534,19 @@ export default function Home() {
           <div className="section-title"><div><p className="eyebrow">CHAPTERS</p><h2>{selectedBook.title}</h2></div></div>
           <div className="chapters">
             {chapters.map((chapter) => (
-              <button key={chapter.id} className={`chapter ${selectedChapter?.id === chapter.id ? "active" : ""}`} onClick={() => void openReader(chapter)}>
-                <span>{chapter.position}</span><strong>{chapter.title}</strong><BookOpen size={16} />
-              </button>
+              <div className={`chapter-row ${selectedChapter?.id === chapter.id ? "active" : ""}`} key={chapter.id}>
+                <button className={`chapter ${selectedChapter?.id === chapter.id ? "active" : ""}`} onClick={() => void openReader(chapter)}>
+                  <span>{chapter.position}</span><strong>{chapter.title}</strong><BookOpen size={16} />
+                </button>
+                <button
+                  className="icon chapter-audio"
+                  title="Nghe chương"
+                  onClick={(event) => { event.stopPropagation(); void loadAudio(chapter); }}
+                  disabled={loadingAudio}
+                >
+                  <Headphones size={16} />
+                </button>
+              </div>
             ))}
           </div>
           {readingProgress && (
@@ -557,6 +567,7 @@ export default function Home() {
               <span>{chapterDetail.word_count.toLocaleString("vi-VN")} từ</span>
             </div>
             <div className="reader-actions">
+              <button className="secondary" onClick={() => selectedChapter && void loadAudio(selectedChapter)}> <Headphones size={16} /> Nghe chương</button>
               <button className="secondary" onClick={() => void saveReaderProgress(100)}>Đánh dấu đã đọc</button>
               <button className="secondary" onClick={nextChapter} disabled={!chapters.some((chapter) => chapter.position === (selectedChapter?.position ?? -1) + 1)}>Chương tiếp</button>
             </div>
