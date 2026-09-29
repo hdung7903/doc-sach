@@ -1,8 +1,8 @@
 <?php
 
-namespace App\\Http\\Requests;
+namespace App\Http\Requests;
 
-use Illuminate\\Foundation\\Http\\FormRequest;
+use Illuminate\Foundation\Http\FormRequest;
 
 class StoreBookRequest extends FormRequest
 {
@@ -18,7 +18,7 @@ class StoreBookRequest extends FormRequest
             'author' => 'nullable|string|max:255',
             'description' => 'nullable|string',
             'source_format' => 'required|in:epub',
-            'file' => 'required|file|max:51200|mimes:epub',
+            'file' => 'required|file|max:51200|mimetypes:application/epub+zip',
         ];
     }
 }
