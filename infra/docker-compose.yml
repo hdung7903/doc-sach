@@ -19,6 +19,31 @@ services:
     volumes:
       - redis_data:/data
 
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 minio minio123; do sleep 2; done;
+      mc mb --ignore-existing local/doc-sach;
+      mc anonymous set download local/doc-sach;
+      exit 0;
+      "
+
   tts-worker:
     build:
       context: ../services/tts-worker
@@ -44,12 +69,21 @@ services:
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
       QUEUE_CONNECTION: database
-      FILESYSTEM_DISK: public
+      FILESYSTEM_DISK: s3
       CACHE_STORE: database
       SESSION_DRIVER: database
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: minio123
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_BUCKET: doc-sach
+      AWS_ENDPOINT: http://minio:9000
+      AWS_URL: http://localhost:9000/doc-sach
+      AWS_USE_PATH_STYLE_ENDPOINT: "true"
       TTS_WORKER_URL: http://tts-worker:8100
       TTS_WORKER_TOKEN: change-me
     depends_on:
+      minio-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       tts-worker:
