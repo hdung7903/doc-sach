@@ -226,6 +226,7 @@ export default function Home() {
         api<ReadingProgress | null>(`books/${selectedBook.id}/progress`),
       ]);
       setSelectedChapter(chapter);
+      setAudio([]);
       setChapterDetail(detail);
       setReadingProgress(progress);
       restoringReaderRef.current = true;
