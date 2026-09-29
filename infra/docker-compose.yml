@@ -49,8 +49,6 @@ services:
       SESSION_DRIVER: database
       TTS_WORKER_URL: http://tts-worker:8100
       TTS_WORKER_TOKEN: change-me
-    volumes:
-      - storage_data:/var/www/html/storage/app/public
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,7 +77,14 @@ services:
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
       QUEUE_CONNECTION: database
-      FILESYSTEM_DISK: public
+      FILESYSTEM_DISK: s3
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: minio123
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_BUCKET: doc-sach
+      AWS_ENDPOINT: http://minio:9000
+      AWS_URL: http://localhost:9000/doc-sach
+      AWS_USE_PATH_STYLE_ENDPOINT: "true"
       CACHE_STORE: database
       SESSION_DRIVER: database
       TTS_WORKER_URL: http://tts-worker:8100
@@ -108,4 +113,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  storage_data:
+  minio_data:
