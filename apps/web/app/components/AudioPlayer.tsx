@@ -83,9 +83,6 @@ export default function AudioPlayer({ items, title = "Audiobook", onProgress }: 
     if (!audio || !item) return;
 
     audio.src = item.url;
-    audio.volume = volume;
-    audio.muted = muted;
-    audio.playbackRate = speed;
     audio.load();
 
     const saved = window.localStorage.getItem(STORAGE_KEY);
@@ -104,7 +101,20 @@ export default function AudioPlayer({ items, title = "Audiobook", onProgress }: 
     if (playing) {
       void audio.play().catch(() => setPlaying(false));
     }
-  }, [item?.url, index, speed, volume, muted]);
+  }, [item?.url, index]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.volume = volume;
+    audio.muted = muted;
+  }, [volume, muted]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.playbackRate = speed;
+  }, [speed]);
 
   useEffect(() => {
     const audio = audioRef.current;
