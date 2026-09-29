@@ -26,6 +26,7 @@ type Props = {
   items: AudioItem[];
   title?: string;
   onProgress?: (item: AudioItem, positionSeconds: number, durationSeconds: number) => void;
+  storageKey?: string;
 };
 
 const STORAGE_KEY = "doc-sach:player-state";
@@ -34,7 +35,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export default function AudioPlayer({ items, title = "Audiobook", onProgress }: Props) {
+export default function AudioPlayer({ items, title = "Audiobook", onProgress, storageKey = STORAGE_KEY }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -58,7 +59,7 @@ export default function AudioPlayer({ items, title = "Audiobook", onProgress }: 
   }, [current, duration]);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
+    const saved = window.localStorage.getItem(storageKey);
     if (!saved) return;
     try {
       const state = JSON.parse(saved) as {
@@ -76,7 +77,7 @@ export default function AudioPlayer({ items, title = "Audiobook", onProgress }: 
     } catch {
       // Ignore malformed local player state.
     }
-  }, [items.length]);
+  }, [items.length, storageKey]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -85,7 +86,7 @@ export default function AudioPlayer({ items, title = "Audiobook", onProgress }: 
     audio.src = item.url;
     audio.load();
 
-    const saved = window.localStorage.getItem(STORAGE_KEY);
+    const saved = window.localStorage.getItem(storageKey);
     let savedCurrent = 0;
     if (saved) {
       try {
@@ -101,7 +102,7 @@ export default function AudioPlayer({ items, title = "Audiobook", onProgress }: 
     if (playing) {
       void audio.play().catch(() => setPlaying(false));
     }
-  }, [item?.url, index]);
+  }, [item?.url, index, storageKey]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -125,7 +126,7 @@ export default function AudioPlayer({ items, title = "Audiobook", onProgress }: 
       setDuration(audio.duration || item?.duration_seconds || 0);
       if (item) onProgress?.(item, audio.currentTime, audio.duration || duration || 0);
 
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      window.localStorage.setItem(storageKey, JSON.stringify({
         index,
         current: audio.currentTime,
         volume,
@@ -155,7 +156,7 @@ export default function AudioPlayer({ items, title = "Audiobook", onProgress }: 
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
     };
-  }, [index, item, items.length, onProgress, volume, muted, speed, duration]);
+  }, [index, item, items.length, onProgress, volume, muted, speed, duration, storageKey]);
 
   const togglePlay = () => {
     const audio = audioRef.current;
