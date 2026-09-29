@@ -1,5 +1,5 @@
 import { BookOpen, Headphones, Library, Play } from "lucide-react";
-import AudioPlayer from "@/components/AudioPlayer";
+import AudioPlayer from "./components/AudioPlayer";
 
 const books = [
   { title: "Sách của bạn", author: "Thư viện cá nhân", progress: 0 },
