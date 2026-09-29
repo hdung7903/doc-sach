@@ -24,6 +24,8 @@ type Book = {
   progress?: number;
 };
 type Chapter = { id: string; title: string; position: number };
+type ChapterDetail = Chapter & { content: string; word_count: number; duration_seconds?: number | null };
+type ReadingProgress = { chapter_id: string | null; position_seconds: number; progress_percent: number };
 type ApiList<T> = { data: T[] };
 type TtsResponse = {
   id: string | null;
@@ -89,7 +91,11 @@ export default function Home() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
+  const [chapterDetail, setChapterDetail] = useState<ChapterDetail | null>(null);
+  const [readingProgress, setReadingProgress] = useState<ReadingProgress | null>(null);
+  const [readerOpen, setReaderOpen] = useState(false);
   const [audio, setAudio] = useState<AudioItem[]>([]);
+  const [readerSaving, setReaderSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingAudio, setLoadingAudio] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -180,21 +186,74 @@ export default function Home() {
     setBooks([]);
     setSelectedBook(null);
     setSelectedChapter(null);
+    setChapterDetail(null);
+    setReaderOpen(false);
     setAudio([]);
   };
 
   const selectBook = async (book: Book) => {
     setSelectedBook(book);
     setSelectedChapter(null);
+    setChapterDetail(null);
+    setReadingProgress(null);
+    setReaderOpen(false);
     setAudio([]);
     setTtsStatus("");
     setError("");
     try {
       const result = await api<ApiList<Chapter>>(`books/${book.id}/chapters`);
       setChapters((result.data ?? []).sort((a, b) => a.position - b.position));
+      const progress = await api<ReadingProgress | null>(`books/${book.id}/progress`);
+      setReadingProgress(progress);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không tải được chương.");
     }
+  };
+
+  const openReader = async (chapter: Chapter) => {
+    if (!selectedBook) return;
+    try {
+      setError("");
+      const [detail, progress] = await Promise.all([
+        api<ChapterDetail>(`chapters/${chapter.id}`),
+        api<ReadingProgress | null>(`books/${selectedBook.id}/progress`),
+      ]);
+      setSelectedChapter(chapter);
+      setChapterDetail(detail);
+      setReadingProgress(progress);
+      setReaderOpen(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không mở được chương.");
+    }
+  };
+
+  const saveReaderProgress = async (percent: number) => {
+    if (!selectedBook || !chapterDetail) return;
+    try {
+      setReaderSaving(true);
+      const progress = await api<ReadingProgress>(`books/${selectedBook.id}/progress`, {
+        method: "PUT",
+        body: JSON.stringify({
+          chapter_id: chapterDetail.id,
+          position_seconds: 0,
+          progress_percent: Math.max(0, Math.min(100, Number(percent.toFixed(2)))),
+        }),
+      });
+      setReadingProgress(progress);
+      setBooks((items) => items.map((book) =>
+        book.id === selectedBook.id ? { ...book, progress: progress.progress_percent } : book
+      ));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không lưu được tiến độ.");
+    } finally {
+      setReaderSaving(false);
+    }
+  };
+
+  const nextChapter = () => {
+    if (!selectedChapter) return;
+    const next = chapters.find((chapter) => chapter.position === selectedChapter.position + 1);
+    if (next) void openReader(next);
   };
 
   const uploadBook = async (file: File) => {
@@ -419,10 +478,50 @@ export default function Home() {
           <div className="section-title"><div><p className="eyebrow">CHAPTERS</p><h2>{selectedBook.title}</h2></div></div>
           <div className="chapters">
             {chapters.map((chapter) => (
-              <button key={chapter.id} className={`chapter ${selectedChapter?.id === chapter.id ? "active" : ""}`} onClick={() => void loadAudio(chapter)}>
-                <span>{chapter.position}</span><strong>{chapter.title}</strong><Play size={16} />
+              <button key={chapter.id} className={`chapter ${selectedChapter?.id === chapter.id ? "active" : ""}`} onClick={() => void openReader(chapter)}>
+                <span>{chapter.position}</span><strong>{chapter.title}</strong><BookOpen size={16} />
               </button>
             ))}
+          </div>
+          {readingProgress && (
+            <p className="reader-progress-note">
+              Tiến độ: {Number(readingProgress.progress_percent).toFixed(0)}%
+              {readingProgress.chapter_id ? " · đã lưu trên thiết bị khác" : ""}
+            </p>
+          )}
+        </section>
+      )}
+
+      {readerOpen && chapterDetail && (
+        <section className="section reader-section">
+          <div className="reader-head">
+            <div>
+              <p className="eyebrow">READER</p>
+              <h2>{chapterDetail.title}</h2>
+              <span>{chapterDetail.word_count.toLocaleString("vi-VN")} từ</span>
+            </div>
+            <div className="reader-actions">
+              <button className="secondary" onClick={() => void saveReaderProgress(100)}>Đánh dấu đã đọc</button>
+              <button className="secondary" onClick={nextChapter} disabled={!chapters.some((chapter) => chapter.position === (selectedChapter?.position ?? -1) + 1)}>Chương tiếp</button>
+            </div>
+          </div>
+          <article className="reader-content">
+            {chapterDetail.content.split(/\n\s*\n/).map((paragraph, index) => (
+              <p key={index}>{paragraph}</p>
+            ))}
+          </article>
+          <div className="reader-footer">
+            <span>{readerSaving ? "Đang lưu…" : `Đã lưu ${Number(readingProgress?.progress_percent ?? 0).toFixed(0)}%`}</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={Number(readingProgress?.progress_percent ?? 0)}
+              onChange={(event) => setReadingProgress((current) => current ? { ...current, progress_percent: Number(event.target.value) } : { chapter_id: chapterDetail.id, position_seconds: 0, progress_percent: Number(event.target.value) })}
+              onMouseUp={(event) => void saveReaderProgress(Number((event.target as HTMLInputElement).value))}
+              onTouchEnd={(event) => void saveReaderProgress(Number((event.target as HTMLInputElement).value))}
+            />
           </div>
         </section>
       )}
