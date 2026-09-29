@@ -256,7 +256,7 @@ export default function Home() {
     } finally {
       setReaderSaving(false);
     }
-  };
+  }, [selectedBook, chapterDetail]);
 
   useEffect(() => {
     if (!readerOpen || !chapterDetail || !readerContentRef.current) return;
@@ -283,14 +283,12 @@ export default function Home() {
       const maxScroll = Math.max(0, element.scrollHeight - element.clientHeight);
       const percent = maxScroll === 0 ? 100 : (element.scrollTop / maxScroll) * 100;
       const rounded = Number(percent.toFixed(2));
-      const current = Number(readingProgress?.progress_percent ?? 0);
 
       setReadingProgress((progress) => progress
         ? { ...progress, chapter_id: chapterDetail.id, progress_percent: rounded }
         : { chapter_id: chapterDetail.id, position_seconds: 0, progress_percent: rounded }
       );
 
-      if (Math.abs(rounded - current) < 0.25) return;
       if (readerSaveTimerRef.current) clearTimeout(readerSaveTimerRef.current);
       readerSaveTimerRef.current = setTimeout(() => {
         void saveReaderProgress(rounded);
