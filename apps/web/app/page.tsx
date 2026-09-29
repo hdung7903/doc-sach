@@ -235,7 +235,7 @@ export default function Home() {
     }
   };
 
-  const saveReaderProgress = useCallback(async (percent: number) => {
+  const saveReaderProgress = useCallback(async (percent: number, positionSeconds = 0) => {
     if (!selectedBook || !chapterDetail) return;
     try {
       setReaderSaving(true);
@@ -243,7 +243,7 @@ export default function Home() {
         method: "PUT",
         body: JSON.stringify({
           chapter_id: chapterDetail.id,
-          position_seconds: 0,
+          position_seconds: Math.max(0, Math.round(positionSeconds)),
           progress_percent: Math.max(0, Math.min(100, Number(percent.toFixed(2)))),
         }),
       });
