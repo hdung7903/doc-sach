@@ -10,6 +10,15 @@ use Illuminate\Support\Facades\Storage;
 
 class AudioController extends Controller
 {
+    private function audioUrl(string $disk, string $path): string
+    {
+        $storage = Storage::disk($disk);
+        if ($disk === 's3' && method_exists($storage, 'temporaryUrl')) {
+            return $storage->temporaryUrl($path, now()->addMinutes(60));
+        }
+        return $storage->url($path);
+    }
+
     public function index(Request $request, Chapter $chapter): JsonResponse
     {
         abort_unless($chapter->book->user_id === $request->user()->id, 404);
@@ -29,7 +38,7 @@ class AudioController extends Controller
                 'position' => $asset->chunk?->position,
                 'duration_seconds' => $asset->duration_seconds,
                 'mime_type' => $asset->mime_type,
-                'url' => Storage::disk($asset->storage_disk)->url($asset->storage_path),
+                'url' => $this->audioUrl($asset->storage_disk, $asset->storage_path),
                 'engine' => $asset->engine,
                 'text_hash' => $asset->text_hash,
                 'format' => $asset->format,
