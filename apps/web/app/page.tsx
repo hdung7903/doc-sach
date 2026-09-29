@@ -1,109 +1,441 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { BookOpen, Headphones, Library, Loader2, Play, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  BookOpen,
+  Headphones,
+  Library,
+  Loader2,
+  LogIn,
+  LogOut,
+  Play,
+  Plus,
+  RefreshCw,
+  Upload,
+  UserPlus,
+} from "lucide-react";
 import AudioPlayer, { type AudioItem } from "./components/AudioPlayer";
 
-type Book = { id: string; title: string; author?: string; status: string; progress?: number };
+type Book = {
+  id: string;
+  title: string;
+  author?: string;
+  status: "draft" | "ready" | "processing" | "failed" | string;
+  progress?: number;
+};
 type Chapter = { id: string; title: string; position: number };
 type ApiList<T> = { data: T[] };
-type TtsResponse = { id: string | null; status: string; cached_chunks: number; total_chunks: number };
+type TtsResponse = {
+  id: string | null;
+  status: string;
+  cached_chunks?: number;
+  processed_chunks?: number;
+  total_chunks: number;
+  error_message?: string;
+};
 
 const API = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:8000";
 const tokenKey = "doc-sach:token";
+const userKey = "doc-sach:user";
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = typeof window !== "undefined" ? window.localStorage.getItem(tokenKey) : null;
+  const token =
+    typeof window !== "undefined"
+      ? window.localStorage.getItem(tokenKey)
+      : null;
+  const isFormData =
+    typeof FormData !== "undefined" && init?.body instanceof FormData;
+
   const response = await fetch(`${API}/api/v1/${path}`, {
     ...init,
-    headers: { Accept: "application/json", ...(init?.body ? { "Content-Type": "application/json" } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init?.headers },
+    headers: {
+      Accept: "application/json",
+      ...(init?.body && !isFormData
+        ? { "Content-Type": "application/json" }
+        : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
+    },
   });
-  if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
+
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`;
+    try {
+      const body = await response.json();
+      message = body.message || body.errors
+        ? body.message || Object.values(body.errors).flat().join(" ")
+        : message;
+    } catch {
+      // Keep the HTTP fallback.
+    }
+    throw new Error(message);
+  }
+
+  if (response.status === 204) return undefined as T;
   return response.json();
 }
 
 export default function Home() {
+  const [token, setToken] = useState<string | null>(null);
+  const [userName, setUserName] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+
   const [books, setBooks] = useState<Book[]>([]);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
   const [audio, setAudio] = useState<AudioItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [loadingAudio, setLoadingAudio] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [ttsStatus, setTtsStatus] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const loadBooks = useCallback(async () => {
-    try {
-      setLoading(true); setError("");
-      const result = await api<ApiList<Book>>("books");
-      setBooks(result.data ?? []);
-    } catch (e) { setError(e instanceof Error ? e.message : "Không tải được thư viện."); }
-    finally { setLoading(false); }
+  useEffect(() => {
+    const savedToken = window.localStorage.getItem(tokenKey);
+    const savedUser = window.localStorage.getItem(userKey);
+    setToken(savedToken);
+    if (savedUser) {
+      try {
+        setUserName(JSON.parse(savedUser).name || "");
+      } catch {
+        // Ignore stale user metadata.
+      }
+    }
   }, []);
 
-  useEffect(() => { void loadBooks(); }, [loadBooks]);
+  const loadBooks = useCallback(async () => {
+    if (!token) return;
+    try {
+      setLoading(true);
+      setError("");
+      const result = await api<ApiList<Book>>("books");
+      setBooks(result.data ?? []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không tải được thư viện.");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void loadBooks();
+  }, [loadBooks]);
+
+  const authenticate = async (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      setAuthLoading(true);
+      setError("");
+      const path =
+        authMode === "login" ? "auth/login" : "auth/register";
+      const payload =
+        authMode === "login"
+          ? { email, password }
+          : {
+              name,
+              email,
+              password,
+              password_confirmation: passwordConfirmation,
+            };
+      const result = await api<{
+        token: string;
+        user: { name: string; email: string };
+      }>(path, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      window.localStorage.setItem(tokenKey, result.token);
+      window.localStorage.setItem(userKey, JSON.stringify(result.user));
+      setToken(result.token);
+      setUserName(result.user.name);
+      setPassword("");
+      setPasswordConfirmation("");
+      setNotice(authMode === "login" ? "Đăng nhập thành công." : "Tài khoản đã được tạo.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Xác thực thất bại.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      if (token) await api("auth/logout", { method: "POST" });
+    } catch {
+      // Local token is still cleared below.
+    }
+    window.localStorage.removeItem(tokenKey);
+    window.localStorage.removeItem(userKey);
+    setToken(null);
+    setUserName("");
+    setBooks([]);
+    setSelectedBook(null);
+    setSelectedChapter(null);
+    setAudio([]);
+  };
 
   const selectBook = async (book: Book) => {
-    setSelectedBook(book); setSelectedChapter(null); setAudio([]); setTtsStatus(""); setError("");
+    setSelectedBook(book);
+    setSelectedChapter(null);
+    setAudio([]);
+    setTtsStatus("");
+    setError("");
     try {
       const result = await api<ApiList<Chapter>>(`books/${book.id}/chapters`);
-      setChapters((result.data ?? []).sort((a,b) => a.position - b.position));
-    } catch (e) { setError(e instanceof Error ? e.message : "Không tải được chương."); }
+      setChapters((result.data ?? []).sort((a, b) => a.position - b.position));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không tải được chương.");
+    }
+  };
+
+  const uploadBook = async (file: File) => {
+    if (!token) return;
+    if (!file.name.toLowerCase().endsWith(".epub")) {
+      setError("Chỉ hỗ trợ file EPUB.");
+      return;
+    }
+
+    const form = new FormData();
+    const title = file.name.replace(/\.epub$/i, "").replace(/[_-]+/g, " ").trim();
+    form.append("title", title || "Sách mới");
+    form.append("source_format", "epub");
+    form.append("file", file);
+
+    try {
+      setUploading(true);
+      setError("");
+      setNotice("Đang upload EPUB…");
+      const created = await api<Book>("books", {
+        method: "POST",
+        body: form,
+      });
+
+      await loadBooks();
+      setNotice("Upload xong. Đang phân tích nội dung EPUB…");
+
+      for (let attempt = 0; attempt < 90; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const current = await api<Book>(`books/${created.id}`);
+        setBooks((items) =>
+          items.map((item) => (item.id === current.id ? current : item)),
+        );
+
+        if (current.status === "ready") {
+          setNotice(`“${current.title}” đã sẵn sàng.`);
+          await selectBook(current);
+          return;
+        }
+
+        if (current.status === "failed") {
+          throw new Error("Không thể xử lý EPUB. Hãy kiểm tra file hoặc log backend.");
+        }
+      }
+
+      setNotice("EPUB vẫn đang được xử lý. Bạn có thể làm việc khác và bấm Làm mới sau.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload EPUB thất bại.");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   const loadAudio = async (chapter: Chapter, generateIfMissing = true) => {
-    setSelectedChapter(chapter); setLoadingAudio(true); setError(""); setTtsStatus("");
+    setSelectedChapter(chapter);
+    setLoadingAudio(true);
+    setError("");
+    setTtsStatus("");
     try {
       const result = await api<{ items: AudioItem[] }>(`chapters/${chapter.id}/audio`);
       const items = result.items ?? [];
       setAudio(items);
       if (items.length || !generateIfMissing) return;
+
       setTtsStatus("Audio chưa có cache. Đang tạo audiobook…");
-      const job = await api<TtsResponse>(`chapters/${chapter.id}/tts`, { method: "POST", body: JSON.stringify({ voice: "vi_VN-vais1000-medium", speed: 1, }) });
+      const job = await api<TtsResponse>(`chapters/${chapter.id}/tts`, {
+        method: "POST",
+        body: JSON.stringify({
+          voice: "vi_VN-vais1000-medium",
+          speed: 1,
+        }),
+      });
+
       if (job.status === "cached") {
         await loadAudio(chapter, false);
         return;
       }
+
       if (!job.id) return;
       for (let attempt = 0; attempt < 60; attempt++) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const status = await api<TtsResponse & { error_message?: string }>(`tts-jobs/${job.id}`);
-        setTtsStatus(`Đang tạo audio: ${status.cached_chunks ?? status.total_chunks - 1}/${status.total_chunks}`);
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const status = await api<TtsResponse>(`tts-jobs/${job.id}`);
+        const processed = status.processed_chunks ?? status.cached_chunks ?? 0;
+        setTtsStatus(
+          `Đang tạo audio: ${processed}/${status.total_chunks}`,
+        );
+
         if (status.status === "completed") {
           await loadAudio(chapter, false);
           return;
         }
-        if (status.status === "failed") throw new Error(status.error_message || "TTS thất bại.");
+        if (status.status === "failed") {
+          throw new Error(status.error_message || "TTS thất bại.");
+        }
       }
       throw new Error("TTS vẫn đang xử lý. Bạn có thể chọn lại chương sau.");
-    } catch (e) { setError(e instanceof Error ? e.message : "Không tải được audio."); }
-    finally { setLoadingAudio(false); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không tải được audio.");
+    } finally {
+      setLoadingAudio(false);
+    }
   };
 
-  return <main className="shell">
-    <header className="topbar"><div className="brand"><BookOpen size={22}/> Đọc Sách</div><nav><a href="#library">Thư viện</a><a href="#audio">Audiobook</a></nav></header>
+  if (!token) {
+    return (
+      <main className="auth-shell">
+        <section className="auth-card">
+          <div className="brand"><BookOpen size={22} /> Đọc Sách</div>
+          <p className="eyebrow">PERSONAL READING PLATFORM</p>
+          <h1>{authMode === "login" ? "Đăng nhập thư viện" : "Tạo tài khoản"}</h1>
+          <p className="auth-copy">
+            Sách và tiến độ được lưu theo tài khoản của bạn.
+          </p>
 
-    <section className="hero">
-      <div><p className="eyebrow">PERSONAL READING PLATFORM</p><h1>Đọc sách. Nghe sách.<br/>Tiếp tục ở mọi thiết bị.</h1><p className="lead">Thư viện cá nhân cho EPUB và audiobook, đồng bộ tiến độ giữa web và điện thoại.</p><div className="actions"><button onClick={() => document.getElementById("library")?.scrollIntoView({behavior:"smooth"})}><Library size={18}/> Mở thư viện</button><button className="secondary" onClick={() => document.getElementById("audio")?.scrollIntoView({behavior:"smooth"})}><Headphones size={18}/> Nghe sách</button></div></div>
-      <div className="hero-card"><BookOpen size={42}/><strong>EPUB → Reader → TTS → Cache</strong><span>Audio đã chuyển đổi được lưu lại để phát lại mà không cần TTS lần nữa.</span></div>
-    </section>
+          {error && <p className="error">{error}</p>}
+          {notice && <p className="notice">{notice}</p>}
 
-    <section id="library" className="section">
-      <div className="section-title"><div><p className="eyebrow">LIBRARY</p><h2>Thư viện của bạn</h2></div><button className="secondary" onClick={() => void loadBooks()}><RefreshCw size={16}/> Làm mới</button></div>
-      {error && <p className="error">{error}</p>}
-      {loading ? <div className="loading"><Loader2 className="spin" size={20}/> Đang tải thư viện…</div> :
-      <div className="grid">{books.map(book=><article className={`book ${selectedBook?.id === book.id ? "selected" : ""}`} key={book.id} onClick={() => void selectBook(book)}>
-        <div className="cover"><BookOpen size={30}/></div><div><h3>{book.title}</h3><p>{book.author || "Không rõ tác giả"}</p><small>{book.status}</small></div><button className="icon" onClick={(event) => { event.stopPropagation(); void selectBook(book); }}><Play size={17}/></button>
-      </article>)}</div>}
-    </section>
+          <form onSubmit={authenticate} className="auth-form">
+            {authMode === "register" && (
+              <label>Tên
+                <input value={name} onChange={(e) => setName(e.target.value)} required />
+              </label>
+            )}
+            <label>Email
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </label>
+            <label>Mật khẩu
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required />
+            </label>
+            {authMode === "register" && (
+              <label>Nhập lại mật khẩu
+                <input type="password" value={passwordConfirmation} onChange={(e) => setPasswordConfirmation(e.target.value)} minLength={8} required />
+              </label>
+            )}
+            <button type="submit" disabled={authLoading}>
+              {authLoading ? <Loader2 className="spin" size={17} /> : authMode === "login" ? <LogIn size={17} /> : <UserPlus size={17} />}
+              {authMode === "login" ? "Đăng nhập" : "Đăng ký"}
+            </button>
+          </form>
 
-    {selectedBook && <section className="section chapter-section"><div className="section-title"><div><p className="eyebrow">CHAPTERS</p><h2>{selectedBook.title}</h2></div></div><div className="chapters">{chapters.map(chapter=><button key={chapter.id} className={`chapter ${selectedChapter?.id === chapter.id ? "active" : ""}`} onClick={() => void loadAudio(chapter)}><span>{chapter.position + 1}</span><strong>{chapter.title}</strong><Play size={16}/></button>)}</div></section>}
+          <button className="secondary auth-switch" onClick={() => {
+            setAuthMode(authMode === "login" ? "register" : "login");
+            setError("");
+          }}>
+            {authMode === "login" ? "Chưa có tài khoản? Đăng ký" : "Đã có tài khoản? Đăng nhập"}
+          </button>
+        </section>
+      </main>
+    );
+  }
 
-    <section id="audio" className="section audio-section">
-      <div className="section-title"><div><p className="eyebrow">AUDIOBOOK</p><h2>{selectedChapter?.title || "Nghe sách"}</h2></div></div>
-      {loadingAudio ? <div className="loading"><Loader2 className="spin" size={20}/> {ttsStatus || "Đang kiểm tra audio cache…"}</div> : <AudioPlayer items={audio} title={selectedChapter?.title || "Chọn một chương để bắt đầu"} />}
-      {ttsStatus && !loadingAudio && <p className="tts-status">{ttsStatus}</p>}
-    </section>
-  </main>;
+  return (
+    <main className="shell">
+      <header className="topbar">
+        <div className="brand"><BookOpen size={22} /> Đọc Sách</div>
+        <nav>
+          <a href="#library">Thư viện</a>
+          <a href="#audio">Audiobook</a>
+          <span className="user-chip">{userName}</span>
+          <button className="icon small-icon" title="Đăng xuất" onClick={() => void logout()}><LogOut size={16} /></button>
+        </nav>
+      </header>
+
+      <section className="hero">
+        <div>
+          <p className="eyebrow">PERSONAL READING PLATFORM</p>
+          <h1>Đọc sách. Nghe sách.<br />Tiếp tục ở mọi thiết bị.</h1>
+          <p className="lead">Thư viện cá nhân cho EPUB và audiobook, đồng bộ tiến độ giữa web và điện thoại.</p>
+          <div className="actions">
+            <button onClick={() => document.getElementById("library")?.scrollIntoView({ behavior: "smooth" })}><Library size={18} /> Mở thư viện</button>
+            <button className="secondary" onClick={() => document.getElementById("audio")?.scrollIntoView({ behavior: "smooth" })}><Headphones size={18} /> Nghe sách</button>
+          </div>
+        </div>
+        <div className="hero-card">
+          <BookOpen size={42} />
+          <strong>EPUB → Reader → TTS → Cache</strong>
+          <span>Audio đã chuyển đổi được lưu lại để phát lại mà không cần TTS lần nữa.</span>
+        </div>
+      </section>
+
+      <section id="library" className="section">
+        <div className="section-title">
+          <div><p className="eyebrow">LIBRARY</p><h2>Thư viện của bạn</h2></div>
+          <div className="section-actions">
+            <input ref={fileInputRef} type="file" accept=".epub,application/epub+zip" hidden onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void uploadBook(file);
+            }} />
+            <button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+              {uploading ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
+              {uploading ? "Đang upload…" : "Thêm sách"}
+            </button>
+            <button className="secondary" onClick={() => void loadBooks()}><RefreshCw size={16} /> Làm mới</button>
+          </div>
+        </div>
+        {error && <p className="error">{error}</p>}
+        {notice && <p className="notice">{notice}</p>}
+        {loading ? (
+          <div className="loading"><Loader2 className="spin" size={20} /> Đang tải thư viện…</div>
+        ) : books.length === 0 ? (
+          <div className="empty-library"><Upload size={28} /><strong>Thư viện đang trống</strong><span>Chọn một file EPUB để bắt đầu.</span></div>
+        ) : (
+          <div className="grid">
+            {books.map((book) => (
+              <article className={`book ${selectedBook?.id === book.id ? "selected" : ""}`} key={book.id} onClick={() => void selectBook(book)}>
+                <div className="cover"><BookOpen size={30} /></div>
+                <div>
+                  <h3>{book.title}</h3>
+                  <p>{book.author || "Không rõ tác giả"}</p>
+                  <span className={`status status-${book.status}`}>{book.status === "processing" ? "Đang xử lý" : book.status === "ready" ? "Sẵn sàng" : book.status === "failed" ? "Lỗi" : book.status}</span>
+                </div>
+                <button className="icon" onClick={(event) => { event.stopPropagation(); void selectBook(book); }}><Play size={17} /></button>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {selectedBook && (
+        <section className="section chapter-section">
+          <div className="section-title"><div><p className="eyebrow">CHAPTERS</p><h2>{selectedBook.title}</h2></div></div>
+          <div className="chapters">
+            {chapters.map((chapter) => (
+              <button key={chapter.id} className={`chapter ${selectedChapter?.id === chapter.id ? "active" : ""}`} onClick={() => void loadAudio(chapter)}>
+                <span>{chapter.position}</span><strong>{chapter.title}</strong><Play size={16} />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section id="audio" className="section audio-section">
+        <div className="section-title"><div><p className="eyebrow">AUDIOBOOK</p><h2>{selectedChapter?.title || "Nghe sách"}</h2></div></div>
+        {loadingAudio ? (
+          <div className="loading"><Loader2 className="spin" size={20} /> {ttsStatus || "Đang kiểm tra audio cache…"}</div>
+        ) : (
+          <AudioPlayer items={audio} title={selectedChapter?.title || "Chọn một chương để bắt đầu"} />
+        )}
+        {ttsStatus && !loadingAudio && <p className="tts-status">{ttsStatus}</p>}
+      </section>
+    </main>
+  );
 }
