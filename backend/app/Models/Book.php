@@ -11,7 +11,7 @@ class Book extends Model
 {
     use HasUuids;
 
-    protected $fillable = ['user_id','title','author','description','cover_path','source_format','status','total_chapters','total_words'];
+    protected $fillable = ['user_id','title','author','description','cover_path','source_path','source_format','status','total_chapters','total_words'];
 
     public function user(): BelongsTo { return $this->belongsTo(User::class); }
     public function chapters(): HasMany { return $this->hasMany(Chapter::class)->orderBy('position'); }
