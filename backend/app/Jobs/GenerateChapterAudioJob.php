@@ -33,7 +33,9 @@ class GenerateChapterAudioJob implements ShouldQueue
         $job->update(['total_chunks' => $chunks->count()]);
 
         foreach ($chunks as $chunk) {
-            $response = Http::timeout(300)->post(config('services.tts.url').'/v1/synthesize', [
+            $response = Http::timeout(300)
+                ->withHeaders(['X-Worker-Token' => (string) config('services.tts.token')])
+                ->post(config('services.tts.url').'/v1/synthesize', [
                 'text' => $chunk->content,
                 'voice' => $job->voice,
                 'format' => 'mp3',
