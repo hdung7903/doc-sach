@@ -235,7 +235,7 @@ export default function Home() {
     }
   };
 
-  const saveReaderProgress = async (percent: number) => {
+  const saveReaderProgress = useCallback(async (percent: number) => {
     if (!selectedBook || !chapterDetail) return;
     try {
       setReaderSaving(true);
@@ -306,7 +306,7 @@ export default function Home() {
         readerSaveTimerRef.current = null;
       }
     };
-  }, [readerOpen, chapterDetail, readingProgress?.progress_percent]);
+  }, [readerOpen, chapterDetail, saveReaderProgress]);
 
   const nextChapter = () => {
     if (!selectedChapter) return;
