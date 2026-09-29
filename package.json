@@ -1,0 +1,1 @@
+{"name":"doc-sach","private":true,"packageManager":"pnpm@10.17.0","scripts":{"dev":"pnpm --filter web dev","build":"pnpm --filter web build","lint":"pnpm --filter web lint"},"devDependencies":{"typescript":"^5.8.3"}}
