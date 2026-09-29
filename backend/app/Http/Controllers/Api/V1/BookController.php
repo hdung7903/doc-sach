@@ -5,24 +5,35 @@ namespace App\\Http\\Controllers\\Api\\V1;
 use App\\Http\\Controllers\\Controller;
 use App\\Http\\Requests\\StoreBookRequest;
 use App\\Http\\Resources\\BookResource;
+use App\\Jobs\\IngestEpubJob;
 use App\\Models\\Book;
 use Illuminate\\Http\\JsonResponse;
 use Illuminate\\Http\\Request;
-use Illuminate\\Support\\Str;
+use Illuminate\\Support\\Facades\\Storage;
 
 class BookController extends Controller
 {
-    public function index(Request $request) { return BookResource::collection($request->user()->books()->latest()->paginate(20)); }
+    public function index(Request $request)
+    {
+        return BookResource::collection($request->user()->books()->latest()->paginate(20));
+    }
 
     public function store(StoreBookRequest $request): BookResource
     {
         $file = $request->file('file');
         $path = $file->store('books/'.$request->user()->id, 'public');
+
         $book = $request->user()->books()->create([
-            'title'=>$request->string('title'),'author'=>$request->input('author'),
-            'description'=>$request->input('description'),'source_format'=>$request->string('source_format'),
-            'status'=>'processing',
+            'title' => $request->string('title'),
+            'author' => $request->input('author'),
+            'description' => $request->input('description'),
+            'source_path' => $path,
+            'source_format' => 'epub',
+            'status' => 'processing',
         ]);
+
+        IngestEpubJob::dispatch($book->id, Storage::disk('public')->path($path));
+
         return new BookResource($book);
     }
 
