@@ -1,10 +1,10 @@
 <?php
 
-namespace App\\Services;
+namespace App\Services;
 
-use App\\Models\\Book;
-use App\\Models\\Chapter;
-use App\\Models\\ChapterChunk;
+use App\Models\Book;
+use App\Models\Chapter;
+use App\Models\ChapterChunk;
 use DOMDocument;
 use DOMXPath;
 use RuntimeException;
@@ -128,19 +128,19 @@ class EpubIngestionService
     private function cleanText(string $text): string
     {
         $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $text = preg_replace('/[\\t ]+/u', ' ', $text) ?? $text;
-        $text = preg_replace('/\\R{3,}/u', "\n\n", $text) ?? $text;
+        $text = preg_replace('/[\t ]+/u', ' ', $text) ?? $text;
+        $text = preg_replace('/\R{3,}/u', "\n\n", $text) ?? $text;
         return trim($text);
     }
 
     private function chunk(string $text, int $maxWords = 450): array
     {
-        $paragraphs = preg_split('/\\n\\s*\\n/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [$text];
+        $paragraphs = preg_split('/\n\s*\n/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [$text];
         $chunks = [];
         $current = '';
 
         foreach ($paragraphs as $paragraph) {
-            $candidate = trim($current === '' ? $paragraph : $current."\\n\\n".$paragraph);
+            $candidate = trim($current === '' ? $paragraph : $current."\n\n".$paragraph);
             if (str_word_count($candidate) <= $maxWords) {
                 $current = $candidate;
                 continue;
@@ -150,7 +150,7 @@ class EpubIngestionService
             $current = $paragraph;
 
             if (str_word_count($current) > $maxWords) {
-                $sentences = preg_split('/(?<=[.!?])\\s+/u', $current, -1, PREG_SPLIT_NO_EMPTY) ?: [$current];
+                $sentences = preg_split('/(?<=[.!?])\s+/u', $current, -1, PREG_SPLIT_NO_EMPTY) ?: [$current];
                 $current = '';
                 foreach ($sentences as $sentence) {
                     $candidate = trim($current === '' ? $sentence : $current.' '.$sentence);
