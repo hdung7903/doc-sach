@@ -60,7 +60,7 @@ jobs:
 
       - name: Check PHP syntax
         run: |
-          find app bootstrap config database routes -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          find app bootstrap config database routes tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
 
       - name: Prepare test environment
         run: |
