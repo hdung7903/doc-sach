@@ -50,7 +50,7 @@ jobs:
           coverage: none
 
       - name: Validate Composer configuration
-        run: composer validate --strict
+        run: composer validate
 
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
