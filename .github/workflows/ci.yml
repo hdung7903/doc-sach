@@ -52,6 +52,9 @@ jobs:
       - name: Validate Composer configuration
         run: composer validate
 
+      - name: Prepare Laravel writable directories
+        run: mkdir -p bootstrap/cache storage/framework/cache storage/framework/sessions storage/framework/views
+
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
