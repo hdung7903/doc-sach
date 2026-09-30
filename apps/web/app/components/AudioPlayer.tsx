@@ -27,6 +27,7 @@ type Props = {
   title?: string;
   onProgress?: (item: AudioItem, positionSeconds: number, durationSeconds: number) => void;
   storageKey?: string;
+  initialPositionSeconds?: number;
 };
 
 const STORAGE_KEY = "doc-sach:player-state";
@@ -35,7 +36,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export default function AudioPlayer({ items, title = "Audiobook", onProgress, storageKey = STORAGE_KEY }: Props) {
+export default function AudioPlayer({ items, title = "Audiobook", onProgress, storageKey = STORAGE_KEY, initialPositionSeconds = 0 }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -60,6 +61,26 @@ export default function AudioPlayer({ items, title = "Audiobook", onProgress, st
 
   useEffect(() => {
     const saved = window.localStorage.getItem(storageKey);
+    if (!saved && items.length && initialPositionSeconds > 0) {
+      const target = Math.max(0, initialPositionSeconds);
+      let remaining = target;
+      let targetIndex = 0;
+
+      for (let i = 0; i < items.length; i += 1) {
+        const itemDuration = Math.max(0, Number(items[i].duration_seconds ?? 0));
+        if (itemDuration > 0 && remaining >= itemDuration && i < items.length - 1) {
+          remaining -= itemDuration;
+          targetIndex = i + 1;
+          continue;
+        }
+        targetIndex = i;
+        break;
+      }
+
+      setIndex(targetIndex);
+      setCurrent(Math.max(0, remaining));
+      return;
+    }
     if (!saved) return;
     try {
       const state = JSON.parse(saved) as {
@@ -77,7 +98,7 @@ export default function AudioPlayer({ items, title = "Audiobook", onProgress, st
     } catch {
       // Ignore malformed local player state.
     }
-  }, [items.length, storageKey]);
+  }, [items, items.length, storageKey, initialPositionSeconds]);
 
   useEffect(() => {
     const audio = audioRef.current;
