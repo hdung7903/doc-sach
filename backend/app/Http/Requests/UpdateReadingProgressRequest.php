@@ -28,8 +28,10 @@ class UpdateReadingProgressRequest extends FormRequest
                     }
                 },
             ],
-            'position_seconds' => 'required|integer|min:0',
-            'progress_percent' => 'required|numeric|min:0|max:100',
+            'position_seconds' => 'sometimes|integer|min:0',
+            'progress_percent' => 'sometimes|numeric|min:0|max:100',
+            'text_position_percent' => 'sometimes|integer|min:0|max:100',
+            'audio_position_seconds' => 'sometimes|integer|min:0',
         ];
     }
 }
