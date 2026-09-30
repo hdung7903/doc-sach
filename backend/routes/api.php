@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AudioController;
 use App\Http\Controllers\Api\V1\BookController;
+use App\Http\Controllers\Api\V1\BookmarkController;
 use App\Http\Controllers\Api\V1\ChapterController;
 use App\Http\Controllers\Api\V1\ReadingProgressController;
 use App\Http\Controllers\Api\V1\TtsController;
@@ -23,5 +24,8 @@ Route::prefix('v1')->group(function () {
         Route::get('tts-jobs/{ttsJob}', [TtsController::class, 'show']);
         Route::get('books/{book}/progress', [ReadingProgressController::class, 'show']);
         Route::put('books/{book}/progress', [ReadingProgressController::class, 'update']);
+        Route::get('books/{book}/bookmarks', [BookmarkController::class, 'index']);
+        Route::post('books/{book}/bookmarks', [BookmarkController::class, 'store']);
+        Route::delete('bookmarks/{bookmark}', [BookmarkController::class, 'destroy']);
     });
 });
