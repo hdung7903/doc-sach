@@ -29,7 +29,7 @@ class BookController extends Controller
             'author' => $request->input('author'),
             'description' => $request->input('description'),
             'source_path' => $path,
-            'source_format' => 'epub',
+            'source_format' => $request->input('source_format'),
             'status' => 'processing',
         ]);
 
