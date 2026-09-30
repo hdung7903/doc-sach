@@ -53,7 +53,7 @@ jobs:
         run: composer validate
 
       - name: Prepare Laravel writable directories
-        run: mkdir -p bootstrap/cache storage/framework/cache storage/framework/sessions storage/framework/views
+        run: mkdir -p bootstrap/cache storage/framework/cache storage/framework/sessions storage/framework/views resources/views
 
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --no-scripts
