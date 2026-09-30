@@ -76,4 +76,24 @@ def synthesize(payload: SynthesizeRequest, x_worker_token: str | None = Header(d
         if result.returncode != 0:
             raise HTTPException(status_code=500, detail=result.stderr[-1000:])
 
-        return Response(content=mp3_path.read_bytes(), media_type="audio/mpeg", headers={"Content-Disposition": "attachment; filename=\"speech.mp3\""})
+        duration_result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(mp3_path)],
+            check=False, capture_output=True, text=True,
+        )
+        if duration_result.returncode != 0:
+            raise HTTPException(status_code=500, detail=duration_result.stderr[-1000:])
+
+        try:
+            duration_seconds = float(duration_result.stdout.strip())
+        except ValueError as exc:
+            raise HTTPException(status_code=500, detail="Could not determine audio duration") from exc
+
+        return Response(
+            content=mp3_path.read_bytes(),
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": "attachment; filename=\"speech.mp3\"",
+                "X-Audio-Duration": f"{duration_seconds:.3f}",
+            },
+        )
