@@ -33,5 +33,6 @@
     ]
   },
   "minimum-stability": "stable",
-  "prefer-stable": true
+  "prefer-stable": true,
+  "description": "Laravel API backend for the Doc Sach reading platform."
 }
