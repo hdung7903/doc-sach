@@ -56,7 +56,11 @@ jobs:
         run: mkdir -p bootstrap/cache storage/framework/cache storage/framework/sessions storage/framework/views
 
       - name: Install Composer dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
+        run: composer install --no-interaction --prefer-dist --no-progress --no-scripts
+
+      - name: Check PHP syntax
+        run: |
+          find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
 
       - name: Prepare test environment
         run: |
