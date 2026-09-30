@@ -16,4 +16,5 @@ class Book extends Model
     public function user(): BelongsTo { return $this->belongsTo(User::class); }
     public function chapters(): HasMany { return $this->hasMany(Chapter::class)->orderBy('position'); }
     public function ttsJobs(): HasMany { return $this->hasMany(TtsJob::class); }
+    public function bookmarks(): HasMany { return $this->hasMany(Bookmark::class); }
 }
