@@ -69,6 +69,7 @@ class GenerateChapterAudioJob implements ShouldQueue
             $path = 'audio/'.$job->book_id.'/'.$job->chapter_id.'/'.$chunk->id.'/'.$textHash.'-'.$job->engine.'-'.$safeVoice.'-'.$speedKey.'.'.$job->format;
 
             $body = $response->body();
+            $duration = max(0, (int) round((float) $response->header('X-Audio-Duration', 0)));
             Storage::disk($disk)->put($path, $body);
 
             AudioAsset::updateOrCreate(
@@ -85,6 +86,7 @@ class GenerateChapterAudioJob implements ShouldQueue
                     'storage_disk' => $disk,
                     'storage_path' => $path,
                     'mime_type' => 'audio/mpeg',
+                    'duration_seconds' => $duration,
                     'size_bytes' => strlen($body),
                 ]
             );
