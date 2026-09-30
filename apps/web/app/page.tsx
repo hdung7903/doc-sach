@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BookOpen, Headphones, Library, Loader2, LogIn, LogOut, Play, Plus, RefreshCw, Upload, UserPlus } from "lucide-react";
+import { BookOpen, Bookmark as BookmarkIcon, Headphones, Library, Loader2, LogIn, LogOut, Play, Plus, RefreshCw, Trash2, Upload, UserPlus } from "lucide-react";
 import AudioPlayer, { type AudioItem } from "./components/AudioPlayer";
 
 type Book = { id: string; title: string; author?: string; status: "draft" | "ready" | "processing" | "failed" | string; progress?: number };
 type Chapter = { id: string; title: string; position: number };
 type ChapterDetail = Chapter & { content: string; word_count: number; duration_seconds?: number | null };
-type ReadingProgress = { chapter_id: string | null; position_seconds: number; progress_percent: number; text_position_percent?: number; audio_position_seconds?: number };
+type ReadingProgress = { chapter_id: string | null; position_seconds: number; progress_percent: number; text_position_percent?: number; audio_position_seconds?: number };\ntype Bookmark = { id: number; book_id: string; chapter_id: string; position: number; note?: string | null; chapter?: { id: string; title: string; position: number } };
 type ApiList<T> = { data: T[] };
 type TtsResponse = { id: string | null; status: string; cached_chunks?: number; processed_chunks?: number; total_chunks: number; error_message?: string };
 
@@ -42,7 +42,7 @@ export default function Home() {
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
   const [chapterDetail, setChapterDetail] = useState<ChapterDetail | null>(null);
-  const [readingProgress, setReadingProgress] = useState<ReadingProgress | null>(null);
+  const [readingProgress, setReadingProgress] = useState<ReadingProgress | null>(null);\n  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [readerOpen, setReaderOpen] = useState(false);
   const [audio, setAudio] = useState<AudioItem[]>([]);
   const [readerSaving, setReaderSaving] = useState(false);
@@ -159,6 +159,34 @@ export default function Home() {
     audioSaveTimerRef.current = setTimeout(() => { void saveProgress({ audio_position_seconds: chapterSeconds, position_seconds: chapterSeconds }); audioSaveTimerRef.current = null; }, 1500);
   }, [selectedBook, selectedChapter, audio, saveProgress]);
 
+  const saveBookmark = async () => {
+    if (!selectedBook || !chapterDetail) return;
+    const position = Math.round(Number(readingProgress?.text_position_percent ?? readingProgress?.progress_percent ?? 0));
+    const note = window.prompt("Ghi chú cho bookmark (tuỳ chọn):", "") ?? "";
+    try {
+      const bookmark = await api<Bookmark>(`books/${selectedBook.id}/bookmarks`, {
+        method: "POST",
+        body: JSON.stringify({ chapter_id: chapterDetail.id, position, note: note.trim() || null }),
+      });
+      setBookmarks(items => [bookmark, ...items]);
+      setNotice(`Đã lưu bookmark tại ${position}%.`);
+    } catch (e) { setError(e instanceof Error ? e.message : "Không lưu được bookmark."); }
+  };
+
+  const deleteBookmark = async (bookmark: Bookmark) => {
+    try {
+      await api(`bookmarks/${bookmark.id}`, { method: "DELETE" });
+      setBookmarks(items => items.filter(item => item.id !== bookmark.id));
+    } catch (e) { setError(e instanceof Error ? e.message : "Không xoá được bookmark."); }
+  };
+
+  const jumpToBookmark = (bookmark: Bookmark) => {
+    if (!readerContentRef.current || bookmark.chapter_id !== chapterDetail?.id) return;
+    const element = readerContentRef.current;
+    const maxScroll = Math.max(0, element.scrollHeight - element.clientHeight);
+    element.scrollTop = maxScroll * Math.max(0, Math.min(100, bookmark.position)) / 100;
+  };
+
   const nextChapter = () => { if (!selectedChapter) return; const next = chapters.find(chapter => chapter.position === selectedChapter.position + 1); if (next) void openReader(next); };
 
   const uploadBook = async (file: File) => {
@@ -196,7 +224,7 @@ export default function Home() {
       <section className="hero"><div><p className="eyebrow">PERSONAL READING PLATFORM</p><h1>Đọc sách. Nghe sách.<br />Tiếp tục ở mọi thiết bị.</h1><p className="lead">Thư viện cá nhân cho EPUB và audiobook, đồng bộ tiến độ giữa web và điện thoại.</p><div className="actions"><button onClick={() => document.getElementById("library")?.scrollIntoView({ behavior: "smooth" })}><Library size={18} /> Mở thư viện</button><button className="secondary" onClick={() => document.getElementById("audio")?.scrollIntoView({ behavior: "smooth" })}><Headphones size={18} /> Nghe sách</button></div></div><div className="hero-card"><BookOpen size={42} /><strong>EPUB → Reader → TTS → Cache</strong><span>Audio đã chuyển đổi được lưu lại để phát lại mà không cần TTS lần nữa.</span></div></section>
       <section id="library" className="section"><div className="section-title"><div><p className="eyebrow">LIBRARY</p><h2>Thư viện của bạn</h2></div><div className="section-actions"><input ref={fileInputRef} type="file" accept=".epub,application/epub+zip" hidden onChange={e => { const file = e.target.files?.[0]; if (file) void uploadBook(file); }} /><button onClick={() => fileInputRef.current?.click()} disabled={uploading}>{uploading ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}{uploading ? "Đang upload…" : "Thêm sách"}</button><button className="secondary" onClick={() => void loadBooks()}><RefreshCw size={16} /> Làm mới</button></div></div>{error && <p className="error">{error}</p>}{notice && <p className="notice">{notice}</p>}{loading ? <div className="loading"><Loader2 className="spin" size={20} /> Đang tải thư viện…</div> : books.length === 0 ? <div className="empty-library"><Upload size={28} /><strong>Thư viện đang trống</strong><span>Chọn một file EPUB để bắt đầu.</span></div> : <div className="grid">{books.map(book => <article className={`book ${selectedBook?.id === book.id ? "selected" : ""}`} key={book.id} onClick={() => void selectBook(book)}><div className="cover"><BookOpen size={30} /></div><div><h3>{book.title}</h3><p>{book.author || "Không rõ tác giả"}</p><span className={`status status-${book.status}`}>{book.status === "processing" ? "Đang xử lý" : book.status === "ready" ? "Sẵn sàng" : book.status === "failed" ? "Lỗi" : book.status}</span></div><button className="icon" onClick={event => { event.stopPropagation(); void selectBook(book); }}><Play size={17} /></button></article>)}</div>}</section>
       {selectedBook && <section className="section chapter-section"><div className="section-title"><div><p className="eyebrow">CHAPTERS</p><h2>{selectedBook.title}</h2></div></div><div className="chapters">{chapters.map(chapter => <div className={`chapter-row ${selectedChapter?.id === chapter.id ? "active" : ""}`} key={chapter.id}><button className={`chapter ${selectedChapter?.id === chapter.id ? "active" : ""}`} onClick={() => void openReader(chapter)}><span>{chapter.position}</span><strong>{chapter.title}</strong><BookOpen size={16} /></button><button className="icon chapter-audio" title="Nghe chương" onClick={event => { event.stopPropagation(); void loadAudio(chapter); }} disabled={loadingAudio}><Headphones size={16} /></button></div>)}</div>{readingProgress && <p className="reader-progress-note">Text: {Number(readingProgress.text_position_percent ?? readingProgress.progress_percent ?? 0).toFixed(0)}% · Audio: {Number(readingProgress.audio_position_seconds ?? 0)}s</p>}</section>}
-      {readerOpen && chapterDetail && <section className="section reader-section"><div className="reader-head"><div><p className="eyebrow">READER</p><h2>{chapterDetail.title}</h2><span>{chapterDetail.word_count.toLocaleString("vi-VN")} từ</span></div><div className="reader-actions"><button className="secondary" onClick={() => selectedChapter && void loadAudio(selectedChapter)}><Headphones size={16} /> Nghe chương</button><button className="secondary" onClick={() => void saveProgress({ text_position_percent: 100, progress_percent: 100 })}>Đánh dấu đã đọc</button><button className="secondary" onClick={nextChapter} disabled={!chapters.some(chapter => chapter.position === (selectedChapter?.position ?? -1) + 1)}>Chương tiếp</button></div></div><article ref={readerContentRef} className="reader-content">{chapterDetail.content.split(/\n\s*\n/).map((paragraph, index) => <p key={index}>{paragraph}</p>)}</article><div className="reader-footer"><span>{readerSaving ? "Đang lưu…" : `Text ${Number(readingProgress?.text_position_percent ?? readingProgress?.progress_percent ?? 0).toFixed(0)}%`}</span><input type="range" min="0" max="100" step="1" value={Number(readingProgress?.text_position_percent ?? readingProgress?.progress_percent ?? 0)} onChange={event => setReadingProgress(current => current ? { ...current, text_position_percent: Number(event.target.value), progress_percent: Number(event.target.value) } : null)} onMouseUp={event => { const value = Number((event.target as HTMLInputElement).value); void saveProgress({ text_position_percent: value, progress_percent: value }); }} onTouchEnd={event => { const value = Number((event.target as HTMLInputElement).value); void saveProgress({ text_position_percent: value, progress_percent: value }); }} /></div></section>}
+      {readerOpen && chapterDetail && <section className="section reader-section"><div className="reader-head"><div><p className="eyebrow">READER</p><h2>{chapterDetail.title}</h2><span>{chapterDetail.word_count.toLocaleString("vi-VN")} từ</span></div><div className="reader-actions"><button className="secondary" onClick={() => selectedChapter && void loadAudio(selectedChapter)}><Headphones size={16} /> Nghe chương</button><button className="secondary" onClick={() => void saveBookmark()}><BookmarkIcon size={16} /> Bookmark</button><button className="secondary" onClick={() => void saveProgress({ text_position_percent: 100, progress_percent: 100 })}>Đánh dấu đã đọc</button><button className="secondary" onClick={nextChapter} disabled={!chapters.some(chapter => chapter.position === (selectedChapter?.position ?? -1) + 1)}>Chương tiếp</button></div></div><article ref={readerContentRef} className="reader-content">{chapterDetail.content.split(/\n\s*\n/).map((paragraph, index) => <p key={index}>{paragraph}</p>)}</article><div className="reader-footer"><span>{readerSaving ? "Đang lưu…" : `Text ${Number(readingProgress?.text_position_percent ?? readingProgress?.progress_percent ?? 0).toFixed(0)}%`}</span><input type="range" min="0" max="100" step="1" value={Number(readingProgress?.text_position_percent ?? readingProgress?.progress_percent ?? 0)} onChange={event => setReadingProgress(current => current ? { ...current, text_position_percent: Number(event.target.value), progress_percent: Number(event.target.value) } : null)} onMouseUp={event => { const value = Number((event.target as HTMLInputElement).value); void saveProgress({ text_position_percent: value, progress_percent: value }); }} onTouchEnd={event => { const value = Number((event.target as HTMLInputElement).value); void saveProgress({ text_position_percent: value, progress_percent: value }); }} /></div>{bookmarks.filter(bookmark => bookmark.chapter_id === chapterDetail.id).length > 0 && <div className="bookmark-list"><div className="bookmark-list-head"><strong>Bookmark chương này</strong><span>{bookmarks.filter(bookmark => bookmark.chapter_id === chapterDetail.id).length}</span></div>{bookmarks.filter(bookmark => bookmark.chapter_id === chapterDetail.id).map(bookmark => <div className="bookmark-item" key={bookmark.id}><button className="bookmark-jump" onClick={() => jumpToBookmark(bookmark)}><BookmarkIcon size={15} /><span>{bookmark.position}%</span><small>{bookmark.note || "Không có ghi chú"}</small></button><button className="icon bookmark-delete" title="Xoá bookmark" onClick={() => void deleteBookmark(bookmark)}><Trash2 size={15} /></button></div>)}</div>}</section>}
       <section id="audio" className="section audio-section"><div className="section-title"><div><p className="eyebrow">AUDIOBOOK</p><h2>{selectedChapter?.title || "Nghe sách"}</h2></div></div>{loadingAudio ? <div className="loading"><Loader2 className="spin" size={20} /> {ttsStatus || "Đang kiểm tra audio cache…"}</div> : <AudioPlayer items={audio} storageKey={selectedBook && selectedChapter ? `doc-sach:player:${selectedBook.id}:${selectedChapter.id}` : undefined} onProgress={handleAudioProgress} title={selectedChapter?.title || "Chọn một chương để bắt đầu"} />}{ttsStatus && !loadingAudio && <p className="tts-status">{ttsStatus}</p>}</section>
     </main>
   );
