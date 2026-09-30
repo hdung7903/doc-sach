@@ -34,6 +34,8 @@ class GenerateChapterAudioJob implements ShouldQueue
 
         $job->update(['total_chunks' => $chunks->count()]);
 
+        $disk = config('filesystems.default');
+
         foreach ($chunks as $chunk) {
             $textHash = hash('sha256', trim($chunk->content));
 
@@ -67,7 +69,7 @@ class GenerateChapterAudioJob implements ShouldQueue
             $path = 'audio/'.$job->book_id.'/'.$job->chapter_id.'/'.$chunk->id.'/'.$textHash.'-'.$job->engine.'-'.$safeVoice.'-'.$speedKey.'.'.$job->format;
 
             $body = $response->body();
-            Storage::disk('public')->put($path, $body);
+            Storage::disk($disk)->put($path, $body);
 
             AudioAsset::updateOrCreate(
                 [
@@ -80,7 +82,7 @@ class GenerateChapterAudioJob implements ShouldQueue
                     'format' => $job->format,
                 ],
                 [
-                    'storage_disk' => 'public',
+                    'storage_disk' => $disk,
                     'storage_path' => $path,
                     'mime_type' => 'audio/mpeg',
                     'size_bytes' => strlen($body),
