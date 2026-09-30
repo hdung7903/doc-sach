@@ -21,6 +21,8 @@ class DatabaseSmokeTest extends TestCase
 
     public function test_books_endpoint_requires_authentication(): void
     {
+        $this->withoutExceptionHandling();
+
         $this->getJson('/api/v1/books')->assertUnauthorized();
     }
 }
