@@ -15,7 +15,7 @@ class BookController extends Controller
 {
     public function index(Request $request)
     {
-        return BookResource::collection($request->user()->books()->latest()->paginate(20));
+        return BookResource::collection($request->user()->books()->with('readingProgress')->latest()->paginate(20));
     }
 
     public function store(StoreBookRequest $request): BookResource
